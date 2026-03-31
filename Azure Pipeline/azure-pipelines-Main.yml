@@ -1,0 +1,629 @@
+trigger: none
+
+pr:
+  branches:
+    include:
+      - SPRINT9
+  paths:
+    exclude:
+      - '/*.md'
+      - '/docs/*'
+      - '/README*'
+
+pool:
+  name: 'BanAIna-Desarrollo'
+
+variables:
+  - group: 'BSC Translation Desarrollo'
+  - name: QUALITY_GATE_ENABLED
+    value: 'true'
+  - name: ACR_SERVER
+    value: 'macaquecontainerregistry.azurecr.io'
+  - name: ACR_USERNAME
+    value: 'macaquecontainerregistry'
+  - name: IMAGE_NAME
+    value: 'bsc-translation'
+  - name: ENV_TAG
+    value: 'dev'
+
+stages:
+  - stage: Build
+    displayName: '🏗️ Construcción y Análisis'
+    jobs:
+      - job: BuildJob
+        displayName: '🔨 Build y SonarQube'
+        steps:
+          - checkout: self
+            fetchDepth: 1
+            clean: true
+            displayName: '📥 Descargar código fuente'
+
+          - task: Bash@3
+            displayName: '⚙️ Configurar .env'
+            env:
+              APP_VERSION: $(APP_VERSION)
+              PROJECT_NAME: $(PROJECT_NAME)
+              DOCKER_BUILDKIT: $(DOCKER_BUILDKIT)
+              COMPOSE_DOCKER_CLI_BUILD: $(COMPOSE_DOCKER_CLI_BUILD)
+              WEB_PORT: $(WEB_PORT)
+              WORKERS: $(WORKERS)
+              LOG_LEVEL: $(LOG_LEVEL)
+              LOG_COLOR: $(LOG_COLOR)
+              LOG_DIR: $(LOG_DIR)
+              LOG_FILENAME: $(LOG_FILENAME)
+              LOG_JSON: $(LOG_JSON)
+              LOG_TO_FILE: $(LOG_TO_FILE)
+              DB_HOST: $(DB_HOST)
+              DB_PORT: $(DB_PORT)
+              DB_NAME: $(DB_NAME)
+              DB_USER: $(DB_USER)
+              DB_PASSWORD: $(DB_PASSWORD)
+              DB_ECHO: $(DB_ECHO)
+              DB_POOL_SIZE: $(DB_POOL_SIZE)
+              DB_MAX_OVERFLOW: $(DB_MAX_OVERFLOW)
+              JWT_SECRET_KEY: $(JWT_SECRET_KEY)
+              JWT_ALGORITHM: $(JWT_ALGORITHM)
+              JWT_ACCESS_TOKEN_EXPIRE_MINUTES: $(JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
+              SWAGGER_ENABLED: $(SWAGGER_ENABLED)
+              USER_SWAGGER: $(USER_SWAGGER)
+              PASSWORD_SWAGGER: $(PASSWORD_SWAGGER)
+              TAMARIN_LOGS_ENABLED: $(TAMARIN_LOGS_ENABLED)
+              TAMARIN_APP_NAME: $(TAMARIN_APP_NAME)
+              TAMARIN_APP_TOKEN: $(TAMARIN_APP_TOKEN)
+              TAMARIN_API_URL: $(TAMARIN_API_URL)
+              MAILJET_ENABLED: $(MAILJET_ENABLED)
+              MAILJET_API_KEY: $(MAILJET_API_KEY)
+              MAILJET_API_SECRET: $(MAILJET_API_SECRET)
+              MAILJET_SENDER_EMAIL: $(MAILJET_SENDER_EMAIL)
+              MAILJET_SENDER_NAME: $(MAILJET_SENDER_NAME)
+              MAILJET_RECEIVER_EMAILS: $(MAILJET_RECEIVER_EMAILS)
+            inputs:
+              targetType: 'inline'
+              script: |
+                cat > .env << ENVFILE
+                ###########################
+                # APP CONFIG
+                ###########################
+                APP_VERSION=${APP_VERSION}
+                PROJECT_NAME=${PROJECT_NAME}
+                WEB_PORT=${WEB_PORT}
+                WORKERS=${WORKERS}
+
+                ###########################
+                # DOCKER CONFIG
+                ###########################
+                DOCKER_BUILDKIT=${DOCKER_BUILDKIT}
+                COMPOSE_DOCKER_CLI_BUILD=${COMPOSE_DOCKER_CLI_BUILD}
+
+                ###########################
+                # LOGGING
+                ###########################
+                LOG_LEVEL=${LOG_LEVEL}
+                LOG_COLOR=${LOG_COLOR}
+                LOG_DIR=${LOG_DIR}
+                LOG_FILENAME=${LOG_FILENAME}
+                LOG_JSON=${LOG_JSON}
+                LOG_TO_FILE=${LOG_TO_FILE}
+
+                ###########################
+                # DATABASE
+                ###########################
+                DB_HOST=${DB_HOST}
+                DB_PORT=${DB_PORT}
+                DB_NAME=${DB_NAME}
+                DB_USER=${DB_USER}
+                DB_PASSWORD=${DB_PASSWORD}
+                DB_ECHO=${DB_ECHO}
+                DB_POOL_SIZE=${DB_POOL_SIZE}
+                DB_MAX_OVERFLOW=${DB_MAX_OVERFLOW}
+
+                ###########################
+                # JWT / AUTH
+                ###########################
+                JWT_SECRET_KEY=${JWT_SECRET_KEY}
+                JWT_ALGORITHM=${JWT_ALGORITHM}
+                JWT_ACCESS_TOKEN_EXPIRE_MINUTES=${JWT_ACCESS_TOKEN_EXPIRE_MINUTES}
+
+                ###########################
+                # SWAGGER
+                ###########################
+                SWAGGER_ENABLED=${SWAGGER_ENABLED}
+                USER_SWAGGER=${USER_SWAGGER}
+                PASSWORD_SWAGGER=${PASSWORD_SWAGGER}
+
+                ###########################
+                # TAMARIN
+                ###########################
+                TAMARIN_LOGS_ENABLED=${TAMARIN_LOGS_ENABLED}
+                TAMARIN_APP_NAME=${TAMARIN_APP_NAME}
+                TAMARIN_APP_TOKEN=${TAMARIN_APP_TOKEN}
+                TAMARIN_API_URL=${TAMARIN_API_URL}
+
+                ###########################
+                # MAILJET
+                ###########################
+                MAILJET_ENABLED=${MAILJET_ENABLED}
+                MAILJET_API_KEY=${MAILJET_API_KEY}
+                MAILJET_API_SECRET=${MAILJET_API_SECRET}
+                MAILJET_SENDER_EMAIL=${MAILJET_SENDER_EMAIL}
+                MAILJET_SENDER_NAME=${MAILJET_SENDER_NAME}
+                MAILJET_RECEIVER_EMAILS=${MAILJET_RECEIVER_EMAILS}
+                ENVFILE
+                echo "✅ Archivo .env creado correctamente"
+
+          - task: SonarQubePrepare@7
+            displayName: '🔍 Preparar SonarQube'
+            inputs:
+              SonarQube: 'BSC'
+              scannerMode: 'CLI'
+              configMode: 'manual'
+              cliProjectKey: 'BSC-Translation_AI_Project_core_bsctranslation_50787189-1646-4631-b005-e9f85cefa3a6'
+              cliProjectName: 'core_bsctranslation'
+              cliSources: '.'
+              extraProperties: |
+                sonar.sources=app
+                sonar.inclusions=app/**/*
+                sonar.exclusions=Dockerfile,docker-compose.yml,Makefile,requirements.txt,pytest.ini,pyproject.toml,.dockerignore,.gitignore,README.md,tests/**,migrations/**,alembic.ini
+                sonar.test.exclusions=tests/**
+                sonar.python.version=3.12
+                sonar.sourceEncoding=UTF-8
+                sonar.qualitygate.wait=false
+
+          - task: SonarQubeAnalyze@7
+            displayName: '📊 Analizar'
+            inputs:
+              jdkversion: 'JAVA_HOME_17_X64'
+
+          - task: SonarQubePublish@7
+            displayName: '📤 Publicar'
+            inputs:
+              pollingTimeoutSec: '300'
+
+          - task: Bash@3
+            displayName: '🛡️ Quality Gate'
+            condition: eq(variables['QUALITY_GATE_ENABLED'], 'true')
+            env:
+              SONAR_TOKEN: $(SONAR_TOKEN)
+            inputs:
+              targetType: 'inline'
+              script: |
+                PROJECT_KEY="BSC-Translation_AI_Project_core_bsctranslation_50787189-1646-4631-b005-e9f85cefa3a6"
+                
+                sleep 15
+                
+                ISSUES=$(curl -s -u "${SONAR_TOKEN}:" "https://sq.macaqueconsulting.nl/api/issues/search?componentKeys=${PROJECT_KEY}&resolved=false&types=BUG,VULNERABILITY&ps=1")
+                
+                TOTAL=$(echo "$ISSUES" | jq -r '.total // 0')
+                
+                echo "📊 Issues encontrados: $TOTAL"
+                
+                if [ "$TOTAL" -gt 0 ]; then
+                  echo "❌ Quality Gate FAILED - Se encontraron $TOTAL bugs/vulnerabilidades"
+                  exit 1
+                fi
+                
+                echo "✅ Quality Gate PASSED"
+
+          - task: Bash@3
+            displayName: '🔐 Login ACR'
+            env:
+              ACR_PASSWORD: $(ACR_PASSWORD)
+            inputs:
+              targetType: 'inline'
+              script: |
+                echo "${ACR_PASSWORD}" | docker login $(ACR_SERVER) -u $(ACR_USERNAME) --password-stdin
+                echo "✅ Login exitoso en $(ACR_SERVER)"
+
+          - task: Bash@3
+            displayName: '🐳 Build and Tag'
+            env:
+              APP_VERSION: $(APP_VERSION)
+            inputs:
+              targetType: 'inline'
+              script: |
+                set -e
+                
+                APP_VERSION_CLEAN=$(echo "${APP_VERSION}" | tr -d '"')
+                IMAGE_TAG="$(ACR_SERVER)/$(IMAGE_NAME):$(ENV_TAG)-${APP_VERSION_CLEAN}-$(Build.BuildId)"
+                IMAGE_LATEST="$(ACR_SERVER)/$(IMAGE_NAME):$(ENV_TAG)-${APP_VERSION_CLEAN}-latest"
+                IMAGE_PREVIOUS="$(ACR_SERVER)/$(IMAGE_NAME):$(ENV_TAG)-${APP_VERSION_CLEAN}-previous"
+                
+                echo "🏷️ Building tags:"
+                echo "   - $IMAGE_TAG"
+                echo "   - $IMAGE_LATEST"
+                
+                docker build -t $IMAGE_TAG -t $IMAGE_LATEST .
+                
+                echo "##vso[task.setvariable variable=IMAGE_TAG;isOutput=true]$IMAGE_TAG"
+                echo "##vso[task.setvariable variable=IMAGE_LATEST;isOutput=true]$IMAGE_LATEST"
+                echo "##vso[task.setvariable variable=IMAGE_PREVIOUS;isOutput=true]$IMAGE_PREVIOUS"
+                echo "✅ Build completado"
+            name: BuildImage
+
+          - task: Bash@3
+            displayName: '🔄 Tag Previous para Rollback'
+            env:
+              ACR_PASSWORD: $(ACR_PASSWORD)
+              APP_VERSION: $(APP_VERSION)
+            inputs:
+              targetType: 'inline'
+              script: |
+                APP_VERSION_CLEAN=$(echo "${APP_VERSION}" | tr -d '"')
+                IMAGE_LATEST="$(ACR_SERVER)/$(IMAGE_NAME):$(ENV_TAG)-${APP_VERSION_CLEAN}-latest"
+                IMAGE_PREVIOUS="$(ACR_SERVER)/$(IMAGE_NAME):$(ENV_TAG)-${APP_VERSION_CLEAN}-previous"
+                
+                echo "🔄 Guardando imagen actual como previous para rollback..."
+                if docker pull $IMAGE_LATEST 2>/dev/null; then
+                  docker tag $IMAGE_LATEST $IMAGE_PREVIOUS
+                  docker push $IMAGE_PREVIOUS
+                  echo "✅ Imagen previous guardada: $IMAGE_PREVIOUS"
+                else
+                  echo "⚠️ No existe imagen latest previa, es el primer deploy"
+                fi
+
+          - task: Bash@3
+            displayName: '📤 Push ACR'
+            inputs:
+              targetType: 'inline'
+              script: |
+                echo "📤 Pushing $(BuildImage.IMAGE_TAG)"
+                docker push $(BuildImage.IMAGE_TAG)
+                echo "📤 Pushing $(BuildImage.IMAGE_LATEST)"
+                docker push $(BuildImage.IMAGE_LATEST)
+                echo "✅ Imagenes publicadas en ACR"
+
+  - stage: Deploy
+    displayName: '🚀 Despliegue'
+    dependsOn: Build
+    condition: succeeded()
+    variables:
+      IMAGE_TAG: $[ stageDependencies.Build.BuildJob.outputs['BuildImage.IMAGE_TAG'] ]
+      IMAGE_LATEST: $[ stageDependencies.Build.BuildJob.outputs['BuildImage.IMAGE_LATEST'] ]
+      IMAGE_PREVIOUS: $[ stageDependencies.Build.BuildJob.outputs['BuildImage.IMAGE_PREVIOUS'] ]
+    jobs:
+      - job: DeployJob
+        displayName: '🎯 Deploy a Desarrollo'
+        steps:
+          - checkout: self
+            fetchDepth: 1
+
+          - task: Bash@3
+            displayName: '⚙️ Configurar .env'
+            env:
+              APP_VERSION: $(APP_VERSION)
+              PROJECT_NAME: $(PROJECT_NAME)
+              DOCKER_BUILDKIT: $(DOCKER_BUILDKIT)
+              COMPOSE_DOCKER_CLI_BUILD: $(COMPOSE_DOCKER_CLI_BUILD)
+              WEB_PORT: $(WEB_PORT)
+              WORKERS: $(WORKERS)
+              LOG_LEVEL: $(LOG_LEVEL)
+              LOG_COLOR: $(LOG_COLOR)
+              LOG_DIR: $(LOG_DIR)
+              LOG_FILENAME: $(LOG_FILENAME)
+              LOG_JSON: $(LOG_JSON)
+              LOG_TO_FILE: $(LOG_TO_FILE)
+              DB_HOST: $(DB_HOST)
+              DB_PORT: $(DB_PORT)
+              DB_NAME: $(DB_NAME)
+              DB_USER: $(DB_USER)
+              DB_PASSWORD: $(DB_PASSWORD)
+              DB_ECHO: $(DB_ECHO)
+              DB_POOL_SIZE: $(DB_POOL_SIZE)
+              DB_MAX_OVERFLOW: $(DB_MAX_OVERFLOW)
+              JWT_SECRET_KEY: $(JWT_SECRET_KEY)
+              JWT_ALGORITHM: $(JWT_ALGORITHM)
+              JWT_ACCESS_TOKEN_EXPIRE_MINUTES: $(JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
+              SWAGGER_ENABLED: $(SWAGGER_ENABLED)
+              USER_SWAGGER: $(USER_SWAGGER)
+              PASSWORD_SWAGGER: $(PASSWORD_SWAGGER)
+              TAMARIN_LOGS_ENABLED: $(TAMARIN_LOGS_ENABLED)
+              TAMARIN_APP_NAME: $(TAMARIN_APP_NAME)
+              TAMARIN_APP_TOKEN: $(TAMARIN_APP_TOKEN)
+              TAMARIN_API_URL: $(TAMARIN_API_URL)
+              MAILJET_ENABLED: $(MAILJET_ENABLED)
+              MAILJET_API_KEY: $(MAILJET_API_KEY)
+              MAILJET_API_SECRET: $(MAILJET_API_SECRET)
+              MAILJET_SENDER_EMAIL: $(MAILJET_SENDER_EMAIL)
+              MAILJET_SENDER_NAME: $(MAILJET_SENDER_NAME)
+              MAILJET_RECEIVER_EMAILS: $(MAILJET_RECEIVER_EMAILS)
+            inputs:
+              targetType: 'inline'
+              script: |
+                cat > .env << ENVFILE
+                ###########################
+                # APP CONFIG
+                ###########################
+                APP_VERSION=${APP_VERSION}
+                PROJECT_NAME=${PROJECT_NAME}
+                WEB_PORT=${WEB_PORT}
+                WORKERS=${WORKERS}
+
+                ###########################
+                # DOCKER CONFIG
+                ###########################
+                DOCKER_BUILDKIT=${DOCKER_BUILDKIT}
+                COMPOSE_DOCKER_CLI_BUILD=${COMPOSE_DOCKER_CLI_BUILD}
+
+                ###########################
+                # LOGGING
+                ###########################
+                LOG_LEVEL=${LOG_LEVEL}
+                LOG_COLOR=${LOG_COLOR}
+                LOG_DIR=${LOG_DIR}
+                LOG_FILENAME=${LOG_FILENAME}
+                LOG_JSON=${LOG_JSON}
+                LOG_TO_FILE=${LOG_TO_FILE}
+
+                ###########################
+                # DATABASE
+                ###########################
+                DB_HOST=${DB_HOST}
+                DB_PORT=${DB_PORT}
+                DB_NAME=${DB_NAME}
+                DB_USER=${DB_USER}
+                DB_PASSWORD=${DB_PASSWORD}
+                DB_ECHO=${DB_ECHO}
+                DB_POOL_SIZE=${DB_POOL_SIZE}
+                DB_MAX_OVERFLOW=${DB_MAX_OVERFLOW}
+
+                ###########################
+                # JWT / AUTH
+                ###########################
+                JWT_SECRET_KEY=${JWT_SECRET_KEY}
+                JWT_ALGORITHM=${JWT_ALGORITHM}
+                JWT_ACCESS_TOKEN_EXPIRE_MINUTES=${JWT_ACCESS_TOKEN_EXPIRE_MINUTES}
+
+                ###########################
+                # SWAGGER
+                ###########################
+                SWAGGER_ENABLED=${SWAGGER_ENABLED}
+                USER_SWAGGER=${USER_SWAGGER}
+                PASSWORD_SWAGGER=${PASSWORD_SWAGGER}
+
+                ###########################
+                # TAMARIN
+                ###########################
+                TAMARIN_LOGS_ENABLED=${TAMARIN_LOGS_ENABLED}
+                TAMARIN_APP_NAME=${TAMARIN_APP_NAME}
+                TAMARIN_APP_TOKEN=${TAMARIN_APP_TOKEN}
+                TAMARIN_API_URL=${TAMARIN_API_URL}
+
+                ###########################
+                # MAILJET
+                ###########################
+                MAILJET_ENABLED=${MAILJET_ENABLED}
+                MAILJET_API_KEY=${MAILJET_API_KEY}
+                MAILJET_API_SECRET=${MAILJET_API_SECRET}
+                MAILJET_SENDER_EMAIL=${MAILJET_SENDER_EMAIL}
+                MAILJET_SENDER_NAME=${MAILJET_SENDER_NAME}
+                MAILJET_RECEIVER_EMAILS=${MAILJET_RECEIVER_EMAILS}
+                ENVFILE
+                echo "✅ Archivo .env creado correctamente"
+
+          - task: Bash@3
+            displayName: '🔐 Login ACR'
+            env:
+              ACR_PASSWORD: $(ACR_PASSWORD)
+            inputs:
+              targetType: 'inline'
+              script: |
+                echo "${ACR_PASSWORD}" | docker login $(ACR_SERVER) -u $(ACR_USERNAME) --password-stdin
+                echo "✅ Login exitoso en $(ACR_SERVER)"
+
+          - task: Bash@3
+            displayName: '📥 Pull Imagen Nueva'
+            inputs:
+              targetType: 'inline'
+              script: |
+                echo "📥 Pulling $(IMAGE_TAG)"
+                if ! docker pull $(IMAGE_TAG); then
+                  echo "❌ ERROR: No se pudo descargar la imagen $(IMAGE_TAG)"
+                  exit 1
+                fi
+                echo "✅ Imagen descargada"
+
+          - task: Bash@3
+            displayName: '📥 Pull Imagen Previous'
+            inputs:
+              targetType: 'inline'
+              script: |
+                echo "📥 Descargando imagen previous para rollback..."
+                if docker pull $(IMAGE_PREVIOUS) 2>/dev/null; then
+                  echo "✅ Imagen previous disponible para rollback"
+                  echo "##vso[task.setvariable variable=ROLLBACK_AVAILABLE]true"
+                else
+                  echo "⚠️ No hay imagen previous disponible"
+                  echo "##vso[task.setvariable variable=ROLLBACK_AVAILABLE]false"
+                fi
+
+          - task: Bash@3
+            displayName: '💾 Backup Estado Actual'
+            env:
+              PROJECT_NAME: $(PROJECT_NAME)
+            inputs:
+              targetType: 'inline'
+              script: |
+                echo "💾 Guardando estado actual del contenedor..."
+                CURRENT_IMAGE=$(docker inspect ${PROJECT_NAME} --format='{{.Config.Image}}' 2>/dev/null || echo "none")
+                echo "##vso[task.setvariable variable=CURRENT_RUNNING_IMAGE]$CURRENT_IMAGE"
+                if [ "$CURRENT_IMAGE" != "none" ]; then
+                  echo "✅ Imagen actual en ejecucion: $CURRENT_IMAGE"
+                else
+                  echo "⚠️ No hay contenedor en ejecucion actualmente"
+                fi
+
+          - task: Bash@3
+            displayName: '🧹 Limpiar Contenedores'
+            env:
+              PROJECT_NAME: $(PROJECT_NAME)
+              WEB_PORT: $(WEB_PORT)
+            inputs:
+              targetType: 'inline'
+              script: |
+                echo "🧹 Deteniendo contenedores actuales..."
+                
+                docker compose -p ${PROJECT_NAME} down --remove-orphans || true
+                docker stop ${PROJECT_NAME} 2>/dev/null || true
+                docker rm -f ${PROJECT_NAME} 2>/dev/null || true
+                
+                echo "🔍 Verificando puerto ${WEB_PORT}..."
+                CONTAINER_USING_PORT=$(docker ps -q --filter "publish=${WEB_PORT}")
+                if [ -n "$CONTAINER_USING_PORT" ]; then
+                  echo "⚠️ Contenedor usando puerto ${WEB_PORT}: $CONTAINER_USING_PORT"
+                  docker stop $CONTAINER_USING_PORT || true
+                  docker rm -f $CONTAINER_USING_PORT || true
+                fi
+                
+                docker container prune -f || true
+                docker network prune -f || true
+                
+                echo "✅ Limpieza completada"
+
+          - task: Bash@3
+            displayName: '🚀 Deploy'
+            env:
+              DOCKER_IMAGE: $(IMAGE_TAG)
+              PROJECT_NAME: $(PROJECT_NAME)
+            inputs:
+              targetType: 'inline'
+              script: |
+                echo "🚀 Desplegando imagen: ${DOCKER_IMAGE}"
+                export DOCKER_IMAGE="${DOCKER_IMAGE}"
+                docker compose -p ${PROJECT_NAME} up -d --force-recreate --no-build
+                sleep 45
+                docker compose -p ${PROJECT_NAME} ps
+                
+                if docker compose -p ${PROJECT_NAME} ps | grep -E "unhealthy|exited|dead"; then
+                  echo "❌ Contenedor en estado no saludable"
+                  docker compose -p ${PROJECT_NAME} logs --tail=100
+                  exit 1
+                fi
+
+          - task: Bash@3
+            displayName: '🏥 Health Check'
+            env:
+              PROJECT_NAME: $(PROJECT_NAME)
+              WEB_PORT: $(WEB_PORT)
+            inputs:
+              targetType: 'inline'
+              script: |
+                echo "🏥 Verificando salud del servicio en puerto ${WEB_PORT}..."
+                MAX_ATTEMPTS=12
+                ATTEMPT=1
+                while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+                  echo "Intento $ATTEMPT/$MAX_ATTEMPTS"
+                  if curl -f -s "http://localhost:${WEB_PORT}/v1/health" > /dev/null 2>&1; then
+                    echo "✅ Servicio healthy"
+                    echo "##vso[task.setvariable variable=DEPLOY_SUCCESS]true"
+                    exit 0
+                  fi
+                  echo "⏳ Servicio no disponible, esperando..."
+                  sleep 5
+                  ATTEMPT=$((ATTEMPT + 1))
+                done
+                echo "❌ Health check fallo despues de $MAX_ATTEMPTS intentos"
+                echo "##vso[task.setvariable variable=DEPLOY_SUCCESS]false"
+                echo "📋 Logs del contenedor:"
+                docker compose -p ${PROJECT_NAME} logs --tail=100
+                exit 1
+
+          - task: Bash@3
+            displayName: '⏪ Rollback Automatico'
+            condition: failed()
+            env:
+              ACR_PASSWORD: $(ACR_PASSWORD)
+              ROLLBACK_AVAILABLE: $(ROLLBACK_AVAILABLE)
+              IMAGE_PREVIOUS: $(IMAGE_PREVIOUS)
+              CURRENT_RUNNING_IMAGE: $(CURRENT_RUNNING_IMAGE)
+              PROJECT_NAME: $(PROJECT_NAME)
+              WEB_PORT: $(WEB_PORT)
+            inputs:
+              targetType: 'inline'
+              script: |
+                echo "❌ =========================================="
+                echo "❌ DEPLOY FALLO - INICIANDO ROLLBACK"
+                echo "❌ =========================================="
+                
+                echo "${ACR_PASSWORD}" | docker login $(ACR_SERVER) -u $(ACR_USERNAME) --password-stdin
+                
+                ROLLBACK_IMAGE=""
+                if [ "${ROLLBACK_AVAILABLE}" = "true" ] && [ -n "${IMAGE_PREVIOUS}" ]; then
+                  ROLLBACK_IMAGE="${IMAGE_PREVIOUS}"
+                  echo "📌 Usando imagen previous: ${ROLLBACK_IMAGE}"
+                elif [ "${CURRENT_RUNNING_IMAGE}" != "none" ] && [ -n "${CURRENT_RUNNING_IMAGE}" ]; then
+                  ROLLBACK_IMAGE="${CURRENT_RUNNING_IMAGE}"
+                  echo "📌 Usando imagen anterior en ejecucion: ${ROLLBACK_IMAGE}"
+                fi
+                
+                if [ -z "${ROLLBACK_IMAGE}" ]; then
+                  echo "⚠️ No hay imagen disponible para rollback"
+                  echo "⚠️ Este era probablemente el primer deploy"
+                  docker compose -p ${PROJECT_NAME} down || true
+                  exit 1
+                fi
+                
+                echo "🔄 Ejecutando rollback a: ${ROLLBACK_IMAGE}"
+                docker compose -p ${PROJECT_NAME} down || true
+                
+                echo "📥 Descargando imagen de rollback..."
+                docker pull ${ROLLBACK_IMAGE}
+                
+                export DOCKER_IMAGE="${ROLLBACK_IMAGE}"
+                docker compose -p ${PROJECT_NAME} up -d --force-recreate --no-build
+                sleep 45
+                
+                echo "🏥 Verificando rollback..."
+                for i in 1 2 3 4 5; do
+                  if curl -f -s "http://localhost:${WEB_PORT}/v1/health" > /dev/null 2>&1; then
+                    echo "✅ =========================================="
+                    echo "✅ ROLLBACK EXITOSO"
+                    echo "✅ Servicio restaurado con: ${ROLLBACK_IMAGE}"
+                    echo "✅ =========================================="
+                    docker compose -p ${PROJECT_NAME} ps
+                    exit 0
+                  fi
+                  echo "⏳ Verificando rollback... intento $i/5"
+                  sleep 10
+                done
+                
+                echo "❌ =========================================="
+                echo "❌ ROLLBACK FALLO"
+                echo "❌ INTERVENCION MANUAL REQUERIDA"
+                echo "❌ =========================================="
+                docker compose -p ${PROJECT_NAME} logs --tail=100
+                exit 1
+
+          - task: Bash@3
+            displayName: '✅ Deploy Exitoso'
+            condition: succeeded()
+            env:
+              WEB_PORT: $(WEB_PORT)
+              PROJECT_NAME: $(PROJECT_NAME)
+            inputs:
+              targetType: 'inline'
+              script: |
+                echo "✅ =========================================="
+                echo "✅ DEPLOY COMPLETADO EXITOSAMENTE"
+                echo "✅ =========================================="
+                echo "📦 Imagen: $(IMAGE_TAG)"
+                echo "🔗 Health: http://localhost:${WEB_PORT}/v1/health"
+                docker compose -p ${PROJECT_NAME} ps
+
+          - task: Bash@3
+            displayName: '📋 Logs Finales'
+            condition: always()
+            env:
+              PROJECT_NAME: $(PROJECT_NAME)
+            inputs:
+              targetType: 'inline'
+              script: |
+                echo "📋 =========================================="
+                echo "📋 LOGS DEL SERVICIO"
+                echo "📋 =========================================="
+                docker compose -p ${PROJECT_NAME} logs --tail=50
+                echo ""
+                echo "📊 Estado de contenedores:"
+                docker compose -p ${PROJECT_NAME} ps
+                echo ""
+                echo "🐳 Imagenes disponibles:"
+                docker images | grep $(IMAGE_NAME) | head -10
